@@ -25,6 +25,7 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
 
       const aggregate = (rows: typeof monthly.rows) => {
         const goals: Record<string, Goal> = {};
+        const locations: Record<string, { spend: number; goals: Record<string, Goal> }> = {};
         let spend = 0;
         let impressions = 0;
         let clicks = 0;
@@ -32,12 +33,20 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
           spend += row.spend;
           impressions += row.impressions || 0;
           clicks += row.clicks || 0;
-          const goalName = campaignById.get(row.campaignId || "")?.resultType || project.primaryConversion;
+          const campaign = campaignById.get(row.campaignId || "");
+          const goalName = campaign?.resultType || project.primaryConversion;
           goals[goalName] ||= { results: 0, spend: 0 };
           goals[goalName].results += row.results;
           goals[goalName].spend += row.spend;
+          if (campaign?.location) {
+            locations[campaign.location] ||= { spend: 0, goals: {} };
+            locations[campaign.location].spend += row.spend;
+            locations[campaign.location].goals[goalName] ||= { results: 0, spend: 0 };
+            locations[campaign.location].goals[goalName].results += row.results;
+            locations[campaign.location].goals[goalName].spend += row.spend;
+          }
         }
-        return { spend, impressions, clicks, goals };
+        return { spend, impressions, clicks, goals, locations };
       };
 
       const month = aggregate(monthly.rows);
@@ -53,8 +62,10 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
           clicks: month.clicks,
           results: Object.values(month.goals).reduce((sum, goal) => sum + goal.results, 0),
           goals: month.goals,
+          locations: project.id === "emalis" ? month.locations : undefined,
           weeklySpend: week.spend,
           weeklyGoals: week.goals,
+          weeklyLocations: project.id === "emalis" ? week.locations : undefined,
         },
       };
     } catch {
