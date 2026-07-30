@@ -58,6 +58,25 @@ export const projects: Project[] = [
     kpi3: "Сообщение в сообщество до 200 ₽",
     lastSyncStatus: "pending",
   },
+  {
+    id: "emalis",
+    name: "Эмалис",
+    slug: "emalis",
+    status: "stale",
+    color: "#ec4899",
+    description: "Рекламный проект Эмалис",
+    vkProfile: "emalis",
+    vkAccountId: "29867480",
+    connectionType: "api",
+    targetCpl: 400,
+    dailyBudget: 2667,
+    monthlyBudget: 80000,
+    primaryConversion: "Сообщения",
+    kpi1: "80 000 ₽ в месяц, с НДС",
+    kpi2: "400 ₽ за сообщение",
+    kpi3: "600 ₽ за сообщение",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
