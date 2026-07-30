@@ -150,7 +150,7 @@ export const projects: Project[] = [
     primaryConversion: "Замеры",
     kpi1: "100 000 ₽ в месяц",
     kpi2: "8 замеров",
-    kpi3: "До 1 000 ₽ по кабинету",
+    kpi3: "Заявка до 1 000 ₽ по кабинету",
     lastSyncStatus: "pending",
   },
 ];

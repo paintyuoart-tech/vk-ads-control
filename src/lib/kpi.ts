@@ -21,7 +21,7 @@ function targetsFrom(text: string): Target[] {
     const normalized = part.toLowerCase();
     const amount = Number((part.match(/\d[\d\s]*/) ?? ["0"])[0].replace(/\s/g, ""));
     const alias = ACTION_ALIASES.find(({ words }) => words.some((word) => normalized.includes(word)));
-    const terms = alias?.terms ?? (normalized.includes("кабинет") ? ["сообщ"] : []);
+    const terms = normalized.includes("кабинет") ? ["сообщ"] : (alias?.terms ?? []);
     return { amount, terms };
   }).filter((target) => target.amount > 0 && target.terms.length > 0);
 }
