@@ -1,19 +1,77 @@
 import "server-only";
 import { projects as fallbackProjects } from "@/config/seed";
+import { getAdsProvider } from "@/integrations/vk-ads";
 import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/types";
 
 type Goal = { results: number; spend: number };
 
+async function getLiveFallbackProjects(): Promise<Project[]> {
+  return Promise.all(fallbackProjects.map(async (project) => {
+    if (project.connectionType === "mock") return project;
+    try {
+      const provider = getAdsProvider(project.id);
+      await provider.validateConnection();
+      const campaigns = await provider.getCampaigns();
+      const now = new Date();
+      const monthStart = now.toISOString().slice(0, 8) + "01";
+      const weekStart = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
+      const dateTo = now.toISOString().slice(0, 10);
+      const [monthly, weekly] = await Promise.all([
+        provider.getStatistics({ dateFrom: monthStart, dateTo, campaignIds: campaigns.map((item) => item.id) }),
+        provider.getStatistics({ dateFrom: weekStart, dateTo, campaignIds: campaigns.map((item) => item.id) }),
+      ]);
+      const campaignById = new Map(campaigns.map((item) => [item.id, item]));
+
+      const aggregate = (rows: typeof monthly.rows) => {
+        const goals: Record<string, Goal> = {};
+        let spend = 0;
+        let impressions = 0;
+        let clicks = 0;
+        for (const row of rows) {
+          spend += row.spend;
+          impressions += row.impressions || 0;
+          clicks += row.clicks || 0;
+          const goalName = campaignById.get(row.campaignId || "")?.resultType || project.primaryConversion;
+          goals[goalName] ||= { results: 0, spend: 0 };
+          goals[goalName].results += row.results;
+          goals[goalName].spend += row.spend;
+        }
+        return { spend, impressions, clicks, goals };
+      };
+
+      const month = aggregate(monthly.rows);
+      const week = aggregate(weekly.rows);
+      return {
+        ...project,
+        status: "healthy" as const,
+        lastSyncAt: new Date().toISOString(),
+        lastSyncStatus: "success" as const,
+        metrics: {
+          spend: month.spend,
+          impressions: month.impressions,
+          clicks: month.clicks,
+          results: Object.values(month.goals).reduce((sum, goal) => sum + goal.results, 0),
+          goals: month.goals,
+          weeklySpend: week.spend,
+          weeklyGoals: week.goals,
+        },
+      };
+    } catch {
+      return { ...project, status: "critical" as const, lastSyncStatus: "error" as const };
+    }
+  }));
+}
+
 export async function getCurrentProjects(): Promise<Project[]> {
   const client = await createClient();
-  if (!client) return fallbackProjects;
+  if (!client) return getLiveFallbackProjects();
 
   const { data: { user } } = await client.auth.getUser();
-  if (!user) return fallbackProjects;
+  if (!user) return getLiveFallbackProjects();
 
   const { data, error } = await client.from("projects").select("*").order("created_at");
-  if (error || !data?.length) return fallbackProjects;
+  if (error || !data?.length) return getLiveFallbackProjects();
 
   const now = new Date();
   const weekStart = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
