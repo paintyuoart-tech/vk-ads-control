@@ -115,6 +115,25 @@ export const projects: Project[] = [
     kpi3: "400 ₽ за сообщение",
     lastSyncStatus: "pending",
   },
+  {
+    id: "klyuchi",
+    name: "Ключи",
+    slug: "klyuchi",
+    status: "stale",
+    color: "#f59e0b",
+    description: "Рекламный проект Ключи",
+    vkProfile: "klyuchi",
+    vkAccountId: "1090653047",
+    connectionType: "api",
+    targetCpl: 1000,
+    dailyBudget: 3333,
+    monthlyBudget: 100000,
+    primaryConversion: "Заявки",
+    kpi1: "100 000 ₽ в месяц",
+    kpi2: "Заявка до 1 000 ₽",
+    kpi3: "Целевой замер до 10 000 ₽",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {

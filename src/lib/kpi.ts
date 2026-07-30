@@ -8,7 +8,7 @@ const ACTION_ALIASES: Array<{ words: string[]; terms: string[] }> = [
   { words: ["квалиф", "квал"], terms: ["квалиф", "квал"] },
   { words: ["сообщ", "диалог"], terms: ["сообщ", "диалог"] },
   { words: ["лид"], terms: ["лид"] },
-  { words: ["заяв"], terms: ["заяв"] },
+  { words: ["заяв"], terms: ["заяв", "лид"] },
 ];
 
 function targetsFrom(text: string): Target[] {
