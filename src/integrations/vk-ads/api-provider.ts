@@ -43,6 +43,12 @@ function detectCampaignLocation(targetings: unknown) {
 }
 
 export class ApiVkAdsProvider implements VkAdsProvider {
+  private static readonly readOnlyPaths = [
+    "/user.json",
+    "/campaigns.json",
+    "/packages.json",
+    "/statistics/",
+  ];
   private token: string;
   private accountId?: string;
   private base: string;
@@ -58,10 +64,14 @@ export class ApiVkAdsProvider implements VkAdsProvider {
   }
 
   private async request(path: string, retried = false): Promise<unknown> {
+    if (!ApiVkAdsProvider.readOnlyPaths.some((allowedPath) => path.startsWith(allowedPath))) {
+      throw new Error("VK Ads работает в режиме только чтения: изменяющие запросы запрещены");
+    }
     if (!this.token) throw new Error("Ключ кабинета не найден");
     let response: Response;
     try {
       response = await fetch(`${this.base}${path}`, {
+        method: "GET",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
         cache: "no-store",
         signal: AbortSignal.timeout(20_000),
