@@ -20,6 +20,25 @@ export const projects: Project[] = [
     kpi3: "500 ₽ за сообщение / 1 500 ₽ за лид",
     lastSyncStatus: "pending",
   },
+  {
+    id: "quarta",
+    name: "Quarta",
+    slug: "quarta",
+    status: "stale",
+    color: "#f59e0b",
+    description: "Рекламный проект Quarta",
+    vkProfile: "quarta",
+    vkAccountId: "30737452",
+    connectionType: "api",
+    targetCpl: 30,
+    dailyBudget: 3000,
+    monthlyBudget: 90000,
+    primaryConversion: "Подписки",
+    kpi1: "90 000 ₽ в месяц",
+    kpi2: "Подписчик до 30 ₽",
+    kpi3: "Сообщение в сообщество до 200 ₽",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
