@@ -96,6 +96,25 @@ export const projects: Project[] = [
     kpi3: "250 ₽ по кабинету",
     lastSyncStatus: "pending",
   },
+  {
+    id: "gorki-golf",
+    name: "Горки Гольф",
+    slug: "gorki-golf",
+    status: "stale",
+    color: "#14b8a6",
+    description: "Рекламный проект Горки Гольф",
+    vkProfile: "gorki_golf",
+    vkAccountId: "30638565",
+    connectionType: "api",
+    targetCpl: 400,
+    dailyBudget: 1170,
+    monthlyBudget: 35100,
+    primaryConversion: "Сообщения",
+    kpi1: "35 100 ₽ в месяц",
+    kpi2: "30 заявок с датами и количеством гостей",
+    kpi3: "400 ₽ за сообщение",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
