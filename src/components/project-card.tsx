@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Clock3, Copy, FileText, X } from "lucide-react";
+import { Check, Clock3, Copy, FileText, Sparkles, X } from "lucide-react";
 import type { Project } from "@/types";
 import { getProjectKpiHealth } from "@/lib/kpi";
 
@@ -24,6 +24,13 @@ type ProjectCardProps = {
   project: Project;
   title?: string;
   variants?: ProjectVariant[];
+};
+
+type ImprovementResult = {
+  period: string;
+  analyzedCampaigns: number;
+  best: Array<{ id: string; name: string; resultType: string; results: number; cpl: number }>;
+  tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }>;
 };
 
 const weeklyReportProjects = new Set<string>();
@@ -72,6 +79,10 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [improvementOpen, setImprovementOpen] = useState(false);
+  const [improvementLoading, setImprovementLoading] = useState(false);
+  const [improvementError, setImprovementError] = useState("");
+  const [improvement, setImprovement] = useState<ImprovementResult | null>(null);
   const currentProject = variants?.[variantIndex]?.project ?? project;
   const metrics = currentProject.metrics;
   const selectedGoals = period === "week" ? metrics?.weeklyGoals : metrics?.goals;
@@ -97,6 +108,23 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
   async function copyWeeklyReport() {
     await navigator.clipboard.writeText(reportText);
     setCopied(true);
+  }
+
+  async function openImprovement() {
+    setImprovementOpen(true);
+    if (improvement || improvementLoading) return;
+    setImprovementLoading(true);
+    setImprovementError("");
+    try {
+      const response = await fetch(`/api/recommendations/${encodeURIComponent(currentProject.id)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось сформировать рекомендации");
+      setImprovement(payload);
+    } catch (error) {
+      setImprovementError(error instanceof Error ? error.message : "Не удалось сформировать рекомендации");
+    } finally {
+      setImprovementLoading(false);
+    }
   }
 
   return <article className={`card project-card ${kpiHealth.failed ? (kpiHealth.warning ? "kpi-warning" : "kpi-failed") : ""}`}>
@@ -144,10 +172,37 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     <div className="project-foot">
       <span className="small muted" style={{ display: "flex", gap: 5, alignItems: "center" }}><Clock3 size={13}/>{currentProject.lastSyncAt ? new Date(currentProject.lastSyncAt).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Нет обновлений"}</span>
       <div className="project-foot-actions">
+        <button type="button" className="btn improvement-button" onClick={openImprovement}><Sparkles size={14}/>Как улучшить результаты</button>
         {reportEnabled && <button type="button" className="btn report-button" onClick={openWeeklyReport}><FileText size={14}/>Отчёт</button>}
         <Link href={`/projects/${currentProject.id}`} className="btn">Открыть</Link>
       </div>
     </div>
+    {improvementOpen && typeof document !== "undefined" && createPortal(<div className="report-modal-backdrop" role="presentation" onMouseDown={() => setImprovementOpen(false)}>
+      <section className="report-modal improvement-modal" role="dialog" aria-modal="true" aria-labelledby={`improvement-title-${currentProject.id}`} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="report-modal-head">
+          <div><span className="eyebrow">Анализ кампаний</span><h2 id={`improvement-title-${currentProject.id}`}>Как улучшить результаты · {currentProject.name}</h2></div>
+          <button type="button" className="report-close" aria-label="Закрыть" onClick={() => setImprovementOpen(false)}><X size={18}/></button>
+        </div>
+        {improvementLoading && <div className="improvement-loading"><Sparkles size={22}/><strong>Анализирую историю кампаний…</strong><span className="small muted">Это может занять несколько секунд</span></div>}
+        {improvementError && <div className="notice">{improvementError}</div>}
+        {improvement && <>
+          <div className="small muted improvement-meta">Период: {improvement.period} · Проанализировано кампаний: {improvement.analyzedCampaigns}</div>
+          {improvement.best.length > 0 && <div className="best-campaigns">
+            <span className="eyebrow">Самые эффективные связки</span>
+            {improvement.best.map((item, index) => <div className="best-campaign" key={item.id}>
+              <span>{index + 1}</span><div><strong>{item.name}</strong><small>{item.resultType} · {item.results.toLocaleString("ru-RU")} результатов · {item.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽</small></div>
+            </div>)}
+          </div>}
+          <div className="improvement-tasks">
+            <span className="eyebrow">Задачи для улучшения</span>
+            {improvement.tasks.map((task, index) => <article className={`improvement-task ${task.priority}`} key={`${task.title}-${index}`}>
+              <span className="task-number">{index + 1}</span><div><strong>{task.title}</strong><p>{task.description}</p></div>
+            </article>)}
+          </div>
+          <div className="small muted improvement-disclaimer">Рекомендации сформированы только для планирования. Рекламный кабинет остаётся в режиме чтения.</div>
+        </>}
+      </section>
+    </div>, document.body)}
     {reportOpen && typeof document !== "undefined" && createPortal(<div className="report-modal-backdrop" role="presentation" onMouseDown={() => setReportOpen(false)}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby={`report-title-${currentProject.id}`} onMouseDown={(event) => event.stopPropagation()}>
         <div className="report-modal-head">
