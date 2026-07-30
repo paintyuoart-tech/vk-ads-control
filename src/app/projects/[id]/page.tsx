@@ -4,6 +4,7 @@ import Link from "next/link";
 import { campaigns, daily, projectSummaries, projects, recommendations } from "@/config/seed";
 import { DashboardChart } from "@/components/dashboard-chart";
 import { SyncButton } from "@/components/sync-button";
+import { ProjectRecommendations, WhyResultsButton } from "@/components/project-insights";
 import { getAdsProvider } from "@/integrations/vk-ads";
 import type { CampaignMetric, DailyMetric } from "@/types";
 
@@ -102,6 +103,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <p className="muted" style={{ margin: 0 }}>{project.description} · {project.primaryConversion}</p>
       </div>
       <div className="actions">
+        {project.connectionType !== "mock" && <WhyResultsButton projectId={id} projectName={project.name}/>}
         <Link href={`/projects/${id}/edit`} className="btn">Настройки</Link>
         {project.connectionType !== "mock" && <SyncButton projectId={id}/>}
       </div>
@@ -140,7 +142,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </div>
       <div className="card panel">
         <div className="section-head"><h2>Рекомендации</h2></div>
-        {projectRecommendations.length ? projectRecommendations.map((item) =>
+        {isLive ? <ProjectRecommendations projectId={id}/> : projectRecommendations.length ? projectRecommendations.map((item) =>
           <div className="recommendation" key={item.id}>
             <span className={`rec-icon ${item.severity}`}><AlertTriangle size={15}/></span>
             <div><strong style={{ fontSize: 13 }}>{item.title}</strong><p className="small muted">{item.description}</p>

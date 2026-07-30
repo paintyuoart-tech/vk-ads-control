@@ -134,6 +134,19 @@ h2 { margin:0; font-family:var(--font-heading), sans-serif; font-size:18px; font
 .improvement-task.high { border-left-color:#ef4d5b; }.improvement-task.medium { border-left-color:#e99a2f; }.improvement-task.low { border-left-color:#23a978; }
 .improvement-task p { margin:5px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
 .improvement-disclaimer { margin-top:16px; padding-top:13px; border-top:1px solid var(--line); }
+.why-results-button { color:#f0c674; border-color:rgba(233,154,47,.28); background:rgba(233,154,47,.08); }
+.insight-loading { min-height:180px; display:flex; align-items:center; justify-content:center; gap:9px; color:#c4b5fd; font-size:13px; }
+.recommendation-list { max-height:325px; overflow:auto; padding-right:4px; }
+.recommendation-list .recommendation p { margin:5px 0 0; line-height:1.45; }
+.period-comparison { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.period-card { padding:12px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(255,255,255,.035); }
+.period-card span,.period-card small { display:block; color:var(--muted); font-size:10px; }
+.period-card strong { display:block; margin:7px 0 4px; font-size:20px; }
+.analysis-conclusions { display:grid; gap:8px; margin-top:18px; }
+.analysis-conclusion { display:flex; align-items:flex-start; gap:10px; padding:12px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(255,255,255,.03); }
+.analysis-conclusion.good { color:#67d9aa; }.analysis-conclusion.warning { color:#f1bb66; }.analysis-conclusion.critical { color:#ff8994; }
+.analysis-conclusion div { color:var(--ink); }.analysis-conclusion p { margin:4px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
+@media(max-width:640px){.period-comparison{grid-template-columns:1fr}.why-results-button{width:100%}}
 .report-modal-backdrop { position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:20px; background:rgba(30,38,64,.28); backdrop-filter:blur(12px) saturate(130%); }
 .report-modal { width:min(620px,100%); padding:20px; border:1px solid rgba(255,255,255,.84); border-radius:22px; background:rgba(255,255,255,.76); backdrop-filter:blur(30px) saturate(160%); box-shadow:0 30px 90px rgba(35,45,76,.28),inset 0 1px 0 #fff; }
 .report-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:14px; }
