@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { Check, Clock3, Copy, FileText, Sparkles, X } from "lucide-react";
 import type { Project } from "@/types";
 import { getProjectKpiHealth } from "@/lib/kpi";
+import { ProjectAiChat } from "@/components/project-ai-chat";
 
 const statusText = {
   healthy: "В норме",
@@ -172,6 +173,7 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     <div className="project-foot">
       <span className="small muted" style={{ display: "flex", gap: 5, alignItems: "center" }}><Clock3 size={13}/>{currentProject.lastSyncAt ? new Date(currentProject.lastSyncAt).toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Нет обновлений"}</span>
       <div className="project-foot-actions">
+        <ProjectAiChat projectId={currentProject.id} projectName={currentProject.name} compact/>
         <button type="button" className="btn improvement-button" onClick={openImprovement}><Sparkles size={14}/>Как улучшить результаты</button>
         {reportEnabled && <button type="button" className="btn report-button" onClick={openWeeklyReport}><FileText size={14}/>Отчёт</button>}
         <Link href={`/projects/${currentProject.id}`} className="btn">Открыть</Link>

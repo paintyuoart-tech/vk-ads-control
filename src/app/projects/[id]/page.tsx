@@ -5,6 +5,7 @@ import { campaigns, daily, projectSummaries, projects, recommendations } from "@
 import { DashboardChart } from "@/components/dashboard-chart";
 import { SyncButton } from "@/components/sync-button";
 import { ProjectRecommendations, WhyResultsButton } from "@/components/project-insights";
+import { ProjectAiChat } from "@/components/project-ai-chat";
 import { getAdsProvider } from "@/integrations/vk-ads";
 import type { CampaignMetric, DailyMetric } from "@/types";
 
@@ -103,6 +104,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <p className="muted" style={{ margin: 0 }}>{project.description} · {project.primaryConversion}</p>
       </div>
       <div className="actions">
+        {project.connectionType !== "mock" && <ProjectAiChat projectId={id} projectName={project.name}/>}
         {project.connectionType !== "mock" && <WhyResultsButton projectId={id} projectName={project.name}/>}
         <Link href={`/projects/${id}/edit`} className="btn">Настройки</Link>
         {project.connectionType !== "mock" && <SyncButton projectId={id}/>}
