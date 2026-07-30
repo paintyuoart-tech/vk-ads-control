@@ -117,11 +117,11 @@ export const projects: Project[] = [
   },
   {
     id: "klyuchi",
-    name: "Ключи",
+    name: "Отделка балконов",
     slug: "klyuchi",
     status: "stale",
     color: "#f59e0b",
-    description: "Рекламный проект Ключи",
+    description: "Рекламный проект «Отделка балконов»",
     vkProfile: "klyuchi",
     vkAccountId: "1090653047",
     connectionType: "api",
