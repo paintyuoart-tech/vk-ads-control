@@ -13,6 +13,10 @@ type CampaignTotal = {
   cpl: number;
 };
 
+function directionName(item: CampaignTotal) {
+  return `${item.resultType}${item.location ? ` · ${item.location}` : ""}`;
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const project = projects.find((item) => item.id === id);
@@ -37,7 +41,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       total.results += row.results;
       totals.set(row.campaignId, total);
     }
-
     const rows: CampaignTotal[] = campaigns.map((campaign) => {
       const total = totals.get(campaign.id) || { spend: 0, results: 0 };
       return {
@@ -56,55 +59,73 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       && item.spend > 0
       && !item.resultType.toLocaleLowerCase("ru-RU").includes("другие результаты")
     );
-    const best = [...useful].sort((a, b) => a.cpl - b.cpl || b.results - a.results).slice(0, 3);
+    const groups = new Map<string, CampaignTotal[]>();
+    for (const item of useful) {
+      const key = `${item.resultType}::${item.location || "Все"}`;
+      const group = groups.get(key) || [];
+      group.push(item);
+      groups.set(key, group);
+    }
+    const directions = [...groups.entries()].map(([key, items]) => {
+      const sorted = [...items].sort((a, b) => a.cpl - b.cpl || b.results - a.results);
+      const totals = items.reduce((sum, item) => ({
+        spend: sum.spend + item.spend,
+        results: sum.results + item.results,
+      }), { spend: 0, results: 0 });
+      return {
+        key,
+        name: directionName(sorted[0]),
+        spend: totals.spend,
+        results: totals.results,
+        cpl: totals.results ? totals.spend / totals.results : 0,
+        leader: sorted[0],
+        runnerUp: sorted[1],
+      };
+    }).sort((a, b) => b.spend - a.spend);
+    const best = directions.map((item) => item.leader);
+    const tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }> = [];
+
+    for (const direction of directions) {
+      const leader = direction.leader;
+      tasks.push({
+        title: `${direction.name}: развить связку «${leader.name}»`,
+        description: `В направлении «${direction.name}» лучший результат у кампании «${leader.name}»: ${leader.results.toLocaleString("ru-RU")} результатов по ${leader.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽. Создать отдельный тест с 2–3 новыми объявлениями, сохранив цель${leader.location ? ` и географию «${leader.location}»` : ""}; выделить 10–15% дневного бюджета и оценить после 3–5 результатов.`,
+        priority: "medium",
+      });
+      if (direction.runnerUp) {
+        tasks.push({
+          title: `${direction.name}: сравнить две сильные кампании`,
+          description: `Сравнить «${leader.name}» (${leader.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽) и «${direction.runnerUp.name}» (${direction.runnerUp.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽). Зафиксировать различия в предложении, аудитории и подаче; перенести один сильный элемент в новый контрольный тест.`,
+          priority: "low",
+        });
+      }
+    }
     const weak = rows
       .filter((item) => item.spend > 0 && (item.results === 0 || item.cpl > project.targetCpl * 1.3))
       .sort((a, b) => b.spend - a.spend)
-      .slice(0, 3);
-    const tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }> = [];
-
-    if (best[0]) {
-      const leader = best[0];
-      tasks.push({
-        title: `Запустить тест на основе «${leader.name}»`,
-        description: `Сохранить цель «${leader.resultType}»${leader.location ? ` и географию «${leader.location}»` : ""}. Подготовить 2–3 новых объявления с тем же предложением и запустить отдельным тестом на 10–15% дневного бюджета. Историческая стоимость результата: ${leader.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽.`,
-        priority: "high",
-      });
-      tasks.push({
-        title: `Аккуратно масштабировать лучшую связку`,
-        description: `Если качество обращений подтверждается, повышать бюджет кампании «${leader.name}» ступенями по 10–15% раз в 2–3 дня. После каждого изменения проверять, что стоимость результата не вышла за KPI.`,
-        priority: "medium",
-      });
-    }
-    if (best.length > 1) {
-      tasks.push({
-        title: "Собрать новый тест из сильных элементов",
-        description: `Взять предложение и цель из «${best[0].name}», а дополнительный вариант аудитории или подачи — из «${best[1].name}». Не менять исходные кампании: создать отдельный тест и сравнить его с лидерами.`,
-        priority: "medium",
-      });
-    }
+      .slice(0, 5);
     if (weak.length) {
       tasks.push({
-        title: "Разобрать кампании с дорогим результатом",
+        title: "Разобрать кампании с дорогим результатом или расходом без результата",
         description: weak.map((item) =>
-          `«${item.name}»: ${item.results ? `${item.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за результат` : `нет результатов при расходе ${item.spend.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`}`
-        ).join("; ") + ". Проверить аудиторию, объявление и посадочную страницу; не масштабировать до исправления.",
+          `«${item.name}» [${directionName(item)}]: ${item.results ? `${item.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за результат` : `нет результатов при расходе ${item.spend.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`}`
+        ).join("; ") + ". Проверить цель, аудиторию, креатив и посадочную страницу отдельно по каждому направлению.",
         priority: "high",
       });
     }
     if (!tasks.length) {
       tasks.push({
-        title: "Собрать больше статистики",
-        description: "Пока недостаточно кампаний минимум с тремя результатами. Продолжить текущие тесты и вернуться к сравнению после накопления данных.",
+        title: "Собрать больше статистики по каждому направлению",
+        description: "Пока недостаточно кампаний минимум с тремя результатами. Не объединять разные цели и города: оценивать каждое направление отдельно после накопления данных.",
         priority: "low",
       });
     }
-
     return NextResponse.json({
       project: project.name,
       period: `вся доступная история VK: с ${dateFrom} по ${dateTo}`,
       analyzedCampaigns: rows.length,
       best,
+      directions,
       tasks,
       readOnly: true,
     });

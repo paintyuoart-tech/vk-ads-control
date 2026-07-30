@@ -98,6 +98,49 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const week = metric(periods.week);
     const conclusions: Array<{ status: "good" | "warning" | "critical"; title: string; detail: string }> = [];
     const tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }> = [];
+    const directionGroups = new Map<string, typeof relevant>();
+    for (const item of relevant) {
+      const key = `${item.resultType}::${item.location || "Все"}`;
+      const group = directionGroups.get(key) || [];
+      group.push(item);
+      directionGroups.set(key, group);
+    }
+    const directions = [...directionGroups.values()].map((items) => {
+      const name = `${items[0].resultType}${items[0].location ? ` · ${items[0].location}` : ""}`;
+      const totals = { history: emptyTotals(), month: emptyTotals(), week: emptyTotals() };
+      for (const item of items) {
+        add(totals.history, item.history);
+        add(totals.month, item.month);
+        add(totals.week, item.week);
+      }
+      const leader = [...items]
+        .filter((item) => item.week.results >= 2 || item.month.results >= 3 || item.history.results >= 3)
+        .sort((a, b) => {
+          const aMetric = a.week.results >= 2 ? a.week : a.month.results >= 3 ? a.month : a.history;
+          const bMetric = b.week.results >= 2 ? b.week : b.month.results >= 3 ? b.month : b.history;
+          return aMetric.cpl - bMetric.cpl;
+        })[0];
+      return { name, history: metric(totals.history), month: metric(totals.month), week: metric(totals.week), leader };
+    }).filter((item) => item.history.spend > 0 || item.month.spend > 0 || item.week.spend > 0);
+
+    for (const direction of directions) {
+      const current = direction.week.results ? direction.week : direction.month.results ? direction.month : direction.history;
+      const baseline = direction.month.results ? direction.month : direction.history;
+      const change = current.cpl && baseline.cpl ? (current.cpl / baseline.cpl - 1) * 100 : 0;
+      conclusions.push({
+        status: !current.results ? "critical" : change > 10 ? "critical" : change > 0 ? "warning" : "good",
+        title: `Направление «${direction.name}»`,
+        detail: `${current.results.toLocaleString("ru-RU")} результатов по ${current.cpl ? `${current.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽` : "—"} за ${direction.week.results ? "7 дней" : direction.month.results ? "месяц" : "доступную историю"}${direction.leader ? `; лучшая кампания — «${direction.leader.name}»` : ""}.`,
+      });
+      if (direction.leader) {
+        const leaderMetric = direction.leader.week.results >= 2 ? direction.leader.week : direction.leader.month.results >= 3 ? direction.leader.month : direction.leader.history;
+        tasks.push({
+          title: `${direction.name}: отдельный план улучшения`,
+          description: `Опорная кампания «${direction.leader.name}» — ${leaderMetric.results.toLocaleString("ru-RU")} результатов по ${leaderMetric.cpl.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽. Подготовить 2–3 новые подачи именно для направления «${direction.name}», запустить отдельным тестом и оценить после 3–5 результатов, не смешивая статистику с другими целями или городами.`,
+          priority: current.results ? "medium" : "high",
+        });
+      }
+    }
 
     if (month.cpl && history.cpl) {
       const change = (month.cpl / history.cpl - 1) * 100;
