@@ -134,6 +134,25 @@ export const projects: Project[] = [
     kpi3: "Целевой замер до 10 000 ₽",
     lastSyncStatus: "pending",
   },
+  {
+    id: "russian-height",
+    name: "Русская высота",
+    slug: "russian-height",
+    status: "stale",
+    color: "#06b6d4",
+    description: "Рекламный проект «Русская высота»",
+    vkProfile: "russian_height",
+    vkAccountId: "26197615",
+    connectionType: "api",
+    targetCpl: 1000,
+    dailyBudget: 3333,
+    monthlyBudget: 100000,
+    primaryConversion: "Замеры",
+    kpi1: "100 000 ₽ в месяц",
+    kpi2: "8 замеров",
+    kpi3: "До 1 000 ₽ по кабинету",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
