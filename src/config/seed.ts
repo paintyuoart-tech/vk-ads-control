@@ -39,6 +39,25 @@ export const projects: Project[] = [
     kpi3: "Сообщение в сообщество до 200 ₽",
     lastSyncStatus: "pending",
   },
+  {
+    id: "hut",
+    name: "HUT",
+    slug: "hut",
+    status: "stale",
+    color: "#10b981",
+    description: "Рекламный проект HUT",
+    vkProfile: "hut",
+    vkAccountId: "30615001",
+    connectionType: "api",
+    targetCpl: 30,
+    dailyBudget: 3000,
+    monthlyBudget: 90000,
+    primaryConversion: "Подписки",
+    kpi1: "90 000 ₽ в месяц",
+    kpi2: "Подписчик до 30 ₽",
+    kpi3: "Сообщение в сообщество до 200 ₽",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
