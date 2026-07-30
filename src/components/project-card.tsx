@@ -77,8 +77,9 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
   const selectedGoals = period === "week" ? metrics?.weeklyGoals : metrics?.goals;
   const selectedLocations = period === "week" ? metrics?.weeklyLocations : metrics?.locations;
   const spend = period === "week" ? metrics?.weeklySpend : metrics?.spend;
-  const goals = Object.entries(selectedGoals || {}).filter(([, value]) =>
-    value.results > 0 || (period === "week" && value.spend > 0)
+  const goals = Object.entries(selectedGoals || {}).filter(([name, value]) =>
+    !name.toLocaleLowerCase("ru-RU").includes("другие результаты")
+    && (value.results > 0 || (period === "week" && value.spend > 0))
   );
   const locations = currentProject.id === "emalis"
     ? Object.entries(selectedLocations || {}).filter(([, value]) => value.spend > 0)
