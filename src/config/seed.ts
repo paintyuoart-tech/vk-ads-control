@@ -77,6 +77,25 @@ export const projects: Project[] = [
     kpi3: "600 ₽ за сообщение",
     lastSyncStatus: "pending",
   },
+  {
+    id: "globus",
+    name: "Глобус",
+    slug: "globus",
+    status: "stale",
+    color: "#8b5cf6",
+    description: "Рекламный проект Глобус",
+    vkProfile: "globus",
+    vkAccountId: "24085087",
+    connectionType: "api",
+    targetCpl: 250,
+    dailyBudget: 780,
+    monthlyBudget: 23400,
+    primaryConversion: "Заявки",
+    kpi1: "23 400 ₽ в месяц",
+    kpi2: "30 заявок с датами и количеством гостей",
+    kpi3: "250 ₽ по кабинету",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
