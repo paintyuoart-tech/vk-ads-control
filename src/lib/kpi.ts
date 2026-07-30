@@ -16,7 +16,8 @@ function targetsFrom(text: string): Target[] {
     const normalized = part.toLowerCase();
     const amount = Number((part.match(/\d[\d\s]*/) ?? ["0"])[0].replace(/\s/g, ""));
     const alias = ACTION_ALIASES.find(({ words }) => words.some((word) => normalized.includes(word)));
-    return { amount, terms: alias?.terms ?? [] };
+    const terms = alias?.terms ?? (normalized.includes("кабинет") ? ["сообщ"] : []);
+    return { amount, terms };
   }).filter((target) => target.amount > 0 && target.terms.length > 0);
 }
 
@@ -26,6 +27,7 @@ export function getProjectKpiHealth(project: Project) {
     .map(([name, value]) => ({ name: name.toLowerCase(), ...value }));
   const reasons: string[] = [];
   const failedLabels = new Set<string>();
+  const criticalLabels = new Set<string>();
   const checkedLabels = new Set<string>();
   let maxOverrun = 0;
 
@@ -41,9 +43,8 @@ export function getProjectKpiHealth(project: Project) {
       const spend = matches.reduce((sum, goal) => sum + goal.spend, 0);
 
       if (results <= 0) {
-        if (!project.metrics || project.metrics.spend <= 0) continue;
-        failedLabels.add(label);
-        reasons.push(`${label}: нет результатов по целевому действию`);
+        // Some KPI values come from CRM or manual qualification and cannot be
+        // evaluated from VK Ads statistics alone.
         continue;
       }
 
@@ -51,6 +52,7 @@ export function getProjectKpiHealth(project: Project) {
       if (actualCost > target.amount) {
         failedLabels.add(label);
         maxOverrun = Math.max(maxOverrun, actualCost / target.amount);
+        if (actualCost > target.amount * 1.1) criticalLabels.add(label);
         reasons.push(`${label}: ${Math.round(actualCost).toLocaleString("ru-RU")} ₽ > ${target.amount.toLocaleString("ru-RU")} ₽`);
       }
     }
@@ -59,6 +61,7 @@ export function getProjectKpiHealth(project: Project) {
   const totalCount = [project.kpi2, project.kpi3].filter(Boolean).length;
   return {
     failed: failedLabels.size > 0,
+    warning: failedLabels.size > 0 && criticalLabels.size === 0,
     failedCount: failedLabels.size,
     totalCount,
     reasons,

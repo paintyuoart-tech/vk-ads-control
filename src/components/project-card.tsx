@@ -85,6 +85,7 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     ? Object.entries(selectedLocations || {}).filter(([, value]) => value.spend > 0)
     : [];
   const kpiHealth = getProjectKpiHealth(currentProject);
+  const kpiStatus = kpiHealth.failed ? (kpiHealth.warning ? "warning" : "critical") : currentProject.status;
   const reportEnabled = weeklyReportProjects.has(currentProject.id);
 
   function openWeeklyReport() {
@@ -98,7 +99,7 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     setCopied(true);
   }
 
-  return <article className={`card project-card ${kpiHealth.failed ? "kpi-failed" : ""}`}>
+  return <article className={`card project-card ${kpiHealth.failed ? (kpiHealth.warning ? "kpi-warning" : "kpi-failed") : ""}`}>
     <div className="project-top">
       <div>
         <div className="project-title">
@@ -114,8 +115,8 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
           >{variant.label}</button>)}
         </div>}
       </div>
-      <span className={`status ${kpiHealth.failed ? "critical" : currentProject.status}`} title={kpiHealth.reasons.join("\n")}>
-        ● {kpiHealth.failed ? `Не выполнено ${kpiHealth.failedCount} из ${kpiHealth.totalCount} KPI` : statusText[currentProject.status]}
+      <span className={`status ${kpiStatus}`} title={kpiHealth.reasons.join("\n")}>
+        ● {kpiHealth.failed ? (kpiHealth.warning ? "Почти выполнено" : `Не выполнено ${kpiHealth.failedCount} из ${kpiHealth.totalCount} KPI`) : statusText[currentProject.status]}
       </span>
     </div>
     {(currentProject.kpi1 || currentProject.kpi2 || currentProject.kpi3) && <div className="project-targets">
