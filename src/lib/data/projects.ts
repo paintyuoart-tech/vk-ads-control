@@ -1,0 +1,112 @@
+import "server-only";
+import { projects as fallbackProjects } from "@/config/seed";
+import { createClient } from "@/lib/supabase/server";
+import type { Project } from "@/types";
+
+type Goal = { results: number; spend: number };
+
+export async function getCurrentProjects(): Promise<Project[]> {
+  const client = await createClient();
+  if (!client) return fallbackProjects;
+
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return fallbackProjects;
+
+  const { data, error } = await client.from("projects").select("*").order("created_at");
+  if (error || !data?.length) return fallbackProjects;
+
+  const now = new Date();
+  const weekStart = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
+  const { data: summaries, error: summaryError } = await client.rpc("get_dashboard_project_totals", {
+    month_start: now.toISOString().slice(0, 8) + "01",
+    week_start: weekStart,
+    owner_id: user.id,
+  });
+  const summaryBySlug = new Map(
+    (summaryError ? [] : summaries || []).map((row: Record<string, unknown>) => [String(row.slug), row]),
+  );
+  const { data: goalRows } = await client.rpc("get_dashboard_goal_totals", {
+    month_start: now.toISOString().slice(0, 8) + "01",
+    week_start: weekStart,
+    owner_id: user.id,
+  });
+  const goalsBySlug = new Map<string, Record<string, Goal>>();
+  const weeklyGoalsBySlug = new Map<string, Record<string, Goal>>();
+  for (const row of (goalRows || []) as Record<string, unknown>[]) {
+    const slug = String(row.slug);
+    const name = String(row.goal_name);
+    const monthly = goalsBySlug.get(slug) || {};
+    const weekly = weeklyGoalsBySlug.get(slug) || {};
+    const results = Number(row.results || 0);
+    const weeklyResults = Number(row.weekly_results || 0);
+    if (results > 0) monthly[name] = { results, spend: Number(row.spend || 0) };
+    if (weeklyResults > 0 || Number(row.weekly_spend || 0) > 0) {
+      weekly[name] = { results: weeklyResults, spend: Number(row.weekly_spend || 0) };
+    }
+    goalsBySlug.set(slug, monthly);
+    weeklyGoalsBySlug.set(slug, weekly);
+  }
+  const { data: locationRows } = await client.rpc("get_dashboard_location_totals", {
+    month_start: now.toISOString().slice(0, 8) + "01",
+    week_start: weekStart,
+    owner_id: user.id,
+  });
+  const locations: Record<string, { spend: number; goals: Record<string, Goal> }> = {};
+  const weeklyLocations: Record<string, { spend: number; goals: Record<string, Goal> }> = {};
+  for (const row of (locationRows || []) as Record<string, unknown>[]) {
+    const city = String(row.location);
+    const goalName = String(row.goal_name);
+    const spend = Number(row.spend || 0);
+    const results = Number(row.results || 0);
+    const weeklySpend = Number(row.weekly_spend || 0);
+    const weeklyResults = Number(row.weekly_results || 0);
+    locations[city] ||= { spend: 0, goals: {} };
+    weeklyLocations[city] ||= { spend: 0, goals: {} };
+    locations[city].spend += spend;
+    weeklyLocations[city].spend += weeklySpend;
+    if (results > 0) locations[city].goals[goalName] = { spend, results };
+    if (weeklyResults > 0) weeklyLocations[city].goals[goalName] = { spend: weeklySpend, results: weeklyResults };
+  }
+
+  return data.map((item) => {
+    const summary = summaryBySlug.get(item.slug);
+    const goals = goalsBySlug.get(item.slug) || {};
+    const weeklyGoals = weeklyGoalsBySlug.get(item.slug) || {};
+    const results = Object.values(goals).reduce((sum, goal) => sum + goal.results, 0);
+
+    return {
+      id: item.slug,
+      name: item.name,
+      slug: item.slug,
+      status: item.status,
+      color: item.color,
+      description: item.description || "",
+      vkProfile: item.vk_profile,
+      vkAccountId: item.vk_account_id || undefined,
+      connectionType: item.connection_type,
+      spreadsheetId: item.spreadsheet_id || undefined,
+      sheetName: item.sheet_name || undefined,
+      asanaProjectId: item.asana_project_id || undefined,
+      targetCpl: Number(item.target_cpl),
+      dailyBudget: Number(item.daily_budget),
+      monthlyBudget: Number(item.monthly_budget),
+      primaryConversion: item.primary_conversion,
+      kpi1: item.kpi_1 || undefined,
+      kpi2: item.kpi_2 || undefined,
+      kpi3: item.kpi_3 || undefined,
+      lastSyncAt: item.last_sync_at || undefined,
+      lastSyncStatus: item.last_sync_status || "pending",
+      metrics: summary ? {
+        spend: Number(summary.spend || 0),
+        impressions: Number(summary.impressions || 0),
+        clicks: Number(summary.clicks || 0),
+        results,
+        goals,
+        locations: item.slug === "emalis" ? locations : undefined,
+        weeklySpend: Number(summary.weekly_spend || 0),
+        weeklyGoals,
+        weeklyLocations: item.slug === "emalis" ? weeklyLocations : undefined,
+      } : undefined,
+    } satisfies Project;
+  });
+}
