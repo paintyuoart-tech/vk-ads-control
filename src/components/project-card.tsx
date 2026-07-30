@@ -5,7 +5,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Clock3, Copy, FileText, Sparkles, X } from "lucide-react";
 import type { Project } from "@/types";
-import { getProjectKpiHealth } from "@/lib/kpi";
+import { getProjectKpiHealth, getProjectKpiProgress } from "@/lib/kpi";
 import { ProjectAiChat } from "@/components/project-ai-chat";
 
 const statusText = {
@@ -97,6 +97,7 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     ? Object.entries(selectedLocations || {}).filter(([, value]) => value.spend > 0)
     : [];
   const kpiHealth = getProjectKpiHealth(currentProject);
+  const kpiProgress = getProjectKpiProgress(currentProject);
   const kpiStatus = kpiHealth.failed ? (kpiHealth.warning ? "warning" : "critical") : currentProject.status;
   const reportEnabled = weeklyReportProjects.has(currentProject.id);
 
@@ -150,10 +151,17 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
     </div>
     {(currentProject.kpi1 || currentProject.kpi2 || currentProject.kpi3) && <div className="project-targets">
       {[
-        { label: "Бюджет", value: currentProject.kpi1 },
-        { label: "KPI 1", value: currentProject.kpi2 },
-        { label: "KPI 2", value: currentProject.kpi3 },
-      ].map((item) => item.value && <div className="target-chip" key={item.label} title={item.value}><span>{item.label}</span><strong>{item.value}</strong></div>)}
+        { label: "Бюджет", value: currentProject.kpi1, progress: kpiProgress.budget },
+        { label: "KPI 1", value: currentProject.kpi2, progress: kpiProgress.kpi1 },
+        { label: "KPI 2", value: currentProject.kpi3, progress: kpiProgress.kpi2 },
+      ].map((item) => item.value && <div className="target-row" key={item.label}>
+        <div className="target-chip" title={item.value}><span>{item.label}</span><strong>{item.value}</strong></div>
+        <div className={`kpi-battery ${item.progress.state}`} title={item.progress.detail} aria-label={`${item.label}: ${item.progress.detail}`}>
+          <span className="battery-body"><i style={{ width: `${Math.max(8, item.progress.percent)}%` }}/></span>
+          <span className="battery-tip"/>
+          <strong>{item.progress.state === "unknown" ? "—" : `${item.progress.percent}%`}</strong>
+        </div>
+      </div>)}
     </div>}
     <div className="project-kpis">
       <div className="project-kpi"><span className="small muted">Расход · {period === "week" ? "7 дней" : "месяц"}</span><strong>{metrics ? `${Number(spend || 0).toLocaleString("ru-RU")} ₽` : "—"}</strong></div>
