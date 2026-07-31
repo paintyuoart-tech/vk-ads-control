@@ -174,7 +174,7 @@ export function ProjectCard({ project, title, variants }: ProjectCardProps) {
             <div className="goal-row" key={name}><span>{name}<small>{(goal.spend / goal.results).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за результат</small></span><strong>{goal.results.toLocaleString("ru-RU")}</strong></div>
           )}
         </div>)}</div> : <div className="goal-list" key={`goals-${period}-${currentProject.id}`}>
-          {goals.length ? goals.map(([name, value]) => <div className="goal-row" key={name}><span>{name}<small>{value.results > 0 ? `${(value.spend / value.results).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за результат` : "Нет результатов за период"}</small></span><strong>{value.results.toLocaleString("ru-RU")}</strong></div>) : <div className="goal-empty">Нет результатов за выбранный период</div>}
+          {goals.length ? goals.map(([name, value]) => <div className="goal-row" key={name}><span>{name}<small>{name.toLocaleLowerCase("ru-RU").includes("на проверку") ? "Нужна ручная проверка" : value.results > 0 ? `${(value.spend / value.results).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за результат` : "Нет результатов за период"}</small></span><strong>{value.results.toLocaleString("ru-RU")}</strong></div>) : <div className="goal-empty">Нет результатов за выбранный период</div>}
         </div>}
       </div>
     </div>

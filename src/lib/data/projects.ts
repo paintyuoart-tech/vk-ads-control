@@ -1,6 +1,7 @@
 import "server-only";
 import { projects as fallbackProjects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
+import { getRussianHeightMeasurements } from "@/integrations/vk-community/russian-height";
 import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/types";
 
@@ -51,6 +52,21 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
 
       const month = aggregate(monthly.rows);
       const week = aggregate(weekly.rows);
+      if (project.id === "russian-height") {
+        try {
+          const measurements = await getRussianHeightMeasurements();
+          month.goals["Замеры из диалогов"] = { results: measurements.month, spend: month.spend };
+          week.goals["Замеры из диалогов"] = { results: measurements.week, spend: week.spend };
+          if (measurements.needsReviewMonth > 0) {
+            month.goals["Диалоги на проверку"] = { results: measurements.needsReviewMonth, spend: 0 };
+          }
+          if (measurements.needsReviewWeek > 0) {
+            week.goals["Диалоги на проверку"] = { results: measurements.needsReviewWeek, spend: 0 };
+          }
+        } catch {
+          // Advertising statistics stay available if the community API is temporarily unavailable.
+        }
+      }
       return {
         ...project,
         status: "healthy" as const,
