@@ -1,4 +1,6 @@
 import "server-only";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { projects as fallbackProjects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
 import { getRussianHeightMeasurements } from "@/integrations/vk-community/russian-height";
@@ -6,6 +8,28 @@ import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/types";
 
 type Goal = { results: number; spend: number };
+
+function projectCacheFile(id: string) {
+  return resolve(process.cwd(), ".runtime-cache", `project-${id}.json`);
+}
+
+function saveProjectCache(project: Project) {
+  try {
+    const file = projectCacheFile(project.id);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(project), "utf8");
+  } catch {
+    // The dashboard still works in hosted runtimes with a read-only filesystem.
+  }
+}
+
+function loadProjectCache(id: string) {
+  try {
+    return JSON.parse(readFileSync(projectCacheFile(id), "utf8")) as Project;
+  } catch {
+    return undefined;
+  }
+}
 
 async function getLiveFallbackProjects(): Promise<Project[]> {
   return Promise.all(fallbackProjects.map(async (project) => {
@@ -67,7 +91,7 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
           // Advertising statistics stay available if the community API is temporarily unavailable.
         }
       }
-      return {
+      const currentProject = {
         ...project,
         status: "healthy" as const,
         lastSyncAt: new Date().toISOString(),
@@ -83,8 +107,12 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
           weeklyGoals: week.goals,
           weeklyLocations: project.id === "emalis" ? week.locations : undefined,
         },
-      };
+      } satisfies Project;
+      saveProjectCache(currentProject);
+      return currentProject;
     } catch {
+      const saved = loadProjectCache(project.id);
+      if (saved) return { ...saved, status: "warning" as const, lastSyncStatus: "error" as const };
       return { ...project, status: "critical" as const, lastSyncStatus: "error" as const };
     }
   }));
