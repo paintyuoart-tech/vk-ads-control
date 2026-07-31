@@ -153,6 +153,25 @@ export const projects: Project[] = [
     kpi3: "Заявка до 1 000 ₽ по кабинету",
     lastSyncStatus: "pending",
   },
+  {
+    id: "hevva",
+    name: "HEVVA",
+    slug: "hevva",
+    status: "stale",
+    color: "#a855f7",
+    description: "Рекламный проект HEVVA",
+    vkProfile: "hevva",
+    vkAccountId: "28892096",
+    connectionType: "api",
+    targetCpl: 300,
+    dailyBudget: 1667,
+    monthlyBudget: 50000,
+    primaryConversion: "Сообщения",
+    kpi1: "50 000 ₽ в месяц",
+    kpi2: "300 ₽ за сообщение",
+    kpi3: "500 ₽ за сообщение",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
