@@ -1,4 +1,6 @@
 import "server-only";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 type VkMessage = { id: number; date: number; from_id: number; out?: number; text?: string };
 type Conversation = {
@@ -18,8 +20,26 @@ export type CommunityMeasurementSummary = {
 const GROUP_ID = 79539652;
 const API_VERSION = "5.199";
 const CACHE_TTL = 15 * 60_000;
+const CACHE_FILE = resolve(process.cwd(), ".runtime-cache", "russian-height-measurements.json");
 const ALLOWED_METHODS = new Set(["messages.getConversations", "messages.getHistory"]);
 let cache: { expiresAt: number; value: CommunityMeasurementSummary } | undefined;
+
+function loadSavedCache() {
+  try {
+    return JSON.parse(readFileSync(CACHE_FILE, "utf8")) as { expiresAt: number; value: CommunityMeasurementSummary };
+  } catch {
+    return undefined;
+  }
+}
+
+function saveCache(value: { expiresAt: number; value: CommunityMeasurementSummary }) {
+  try {
+    mkdirSync(dirname(CACHE_FILE), { recursive: true });
+    writeFileSync(CACHE_FILE, JSON.stringify(value), "utf8");
+  } catch {
+    // Some hosted runtimes have a read-only filesystem; the in-memory cache still works there.
+  }
+}
 
 async function vkRead<T>(method: string, params: Record<string, string | number>, attempt = 0): Promise<T> {
   if (!ALLOWED_METHODS.has(method)) throw new Error("VK Community API работает только в режиме чтения");
@@ -109,24 +129,31 @@ async function histories(conversations: Conversation[]) {
 }
 
 export async function getRussianHeightMeasurements(): Promise<CommunityMeasurementSummary> {
+  cache ||= loadSavedCache();
   if (cache && cache.expiresAt > Date.now()) return cache.value;
-  const now = new Date();
-  const monthStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
-  const weekStart = Math.floor((now.getTime() - 6 * 86400000) / 1000);
-  const conversations = await recentConversations(monthStart);
-  const rows = await histories(conversations);
-  let month = 0;
-  let week = 0;
-  let needsReviewMonth = 0;
-  let needsReviewWeek = 0;
-  for (const messages of rows) {
-    const result = classifyConversation(messages);
-    if (result.status === "confirmed" && result.date >= monthStart) month += 1;
-    if (result.status === "confirmed" && result.date >= weekStart) week += 1;
-    if (result.status === "review" && result.date >= monthStart) needsReviewMonth += 1;
-    if (result.status === "review" && result.date >= weekStart) needsReviewWeek += 1;
+  try {
+    const now = new Date();
+    const monthStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+    const weekStart = Math.floor((now.getTime() - 6 * 86400000) / 1000);
+    const conversations = await recentConversations(monthStart);
+    const rows = await histories(conversations);
+    let month = 0;
+    let week = 0;
+    let needsReviewMonth = 0;
+    let needsReviewWeek = 0;
+    for (const messages of rows) {
+      const result = classifyConversation(messages);
+      if (result.status === "confirmed" && result.date >= monthStart) month += 1;
+      if (result.status === "confirmed" && result.date >= weekStart) week += 1;
+      if (result.status === "review" && result.date >= monthStart) needsReviewMonth += 1;
+      if (result.status === "review" && result.date >= weekStart) needsReviewWeek += 1;
+    }
+    const value = { month, week, needsReviewMonth, needsReviewWeek, analyzedConversations: conversations.length, updatedAt: now.toISOString() };
+    cache = { expiresAt: Date.now() + CACHE_TTL, value };
+    saveCache(cache);
+    return value;
+  } catch (error) {
+    if (cache) return cache.value;
+    throw error;
   }
-  const value = { month, week, needsReviewMonth, needsReviewWeek, analyzedConversations: conversations.length, updatedAt: now.toISOString() };
-  cache = { expiresAt: Date.now() + CACHE_TTL, value };
-  return value;
 }

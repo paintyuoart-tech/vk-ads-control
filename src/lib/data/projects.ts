@@ -55,8 +55,8 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
       if (project.id === "russian-height") {
         try {
           const measurements = await getRussianHeightMeasurements();
-          month.goals["Замеры из диалогов"] = { results: measurements.month, spend: month.spend };
-          week.goals["Замеры из диалогов"] = { results: measurements.week, spend: week.spend };
+          month.goals["Замеры"] = { results: measurements.month, spend: month.spend };
+          week.goals["Замеры"] = { results: measurements.week, spend: week.spend };
           if (measurements.needsReviewMonth > 0) {
             month.goals["Диалоги на проверку"] = { results: measurements.needsReviewMonth, spend: 0 };
           }
