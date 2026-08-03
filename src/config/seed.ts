@@ -172,6 +172,25 @@ export const projects: Project[] = [
     kpi3: "500 ₽ за сообщение",
     lastSyncStatus: "pending",
   },
+  {
+    id: "skazochny-bor",
+    name: "Сказочный бор",
+    slug: "skazochny-bor",
+    status: "stale",
+    color: "#22c55e",
+    description: "Рекламный проект «Сказочный бор»",
+    vkProfile: "skazochny_bor",
+    vkAccountId: "1090464582",
+    connectionType: "api",
+    targetCpl: 72,
+    dailyBudget: 1560,
+    monthlyBudget: 46800,
+    primaryConversion: "Подписчики",
+    kpi1: "46 800 ₽ в месяц",
+    kpi2: "Подписчик до 72 ₽",
+    kpi3: "250 ₽ за сообщение",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
