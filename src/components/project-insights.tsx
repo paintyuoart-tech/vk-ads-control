@@ -37,7 +37,7 @@ export function ProjectRecommendations({ projectId }: { projectId: string }) {
   </div>;
 }
 
-export function WhyResultsButton({ projectId, projectName }: { projectId: string; projectName: string }) {
+export function WhyResultsButton({ projectId, projectName, compact = false }: { projectId: string; projectName: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -60,7 +60,7 @@ export function WhyResultsButton({ projectId, projectName }: { projectId: string
   }
 
   return <>
-    <button type="button" className="btn why-results-button" onClick={analyze}><HelpCircle size={15}/>Почему такие результаты?</button>
+    <button type="button" className="btn why-results-button" onClick={analyze}><HelpCircle size={15}/>{compact ? "Почему результаты?" : "Почему такие результаты?"}</button>
     {open && typeof document !== "undefined" && createPortal(<div className="report-modal-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
       <section className="report-modal improvement-modal why-modal" role="dialog" aria-modal="true" aria-labelledby={`why-title-${projectId}`} onMouseDown={(event) => event.stopPropagation()}>
         <div className="report-modal-head">

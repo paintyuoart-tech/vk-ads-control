@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { projects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
+import { openAiJson, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
 
 type Totals = { spend: number; results: number; impressions: number; clicks: number };
 
@@ -209,11 +210,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       });
     }
 
+    const ai = await openAiJson<{
+      conclusions: Array<{ status: "good" | "warning" | "critical"; title: string; detail: string }>;
+      tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }>;
+    }>(
+      PROJECT_ANALYST_RULES,
+      `Задача: объясни, почему получены именно такие результаты, а затем дай конкретный план действий.
+Верни JSON вида {"conclusions":[{"status":"good|warning|critical","title":"...","detail":"факт, сравнение и объяснение"}],"tasks":[{"title":"...","description":"действие, доказательство, срок и критерий успеха","priority":"high|medium|low"}]}.
+В conclusions должно быть 5–10 выводов: история против месяца, месяц против недели, каждое направление результата, каждый город, лидеры, просадки и ограничения данных. В tasks — 4–8 неповторяющихся действий.
+
+ДАННЫЕ ПРОЕКТА:
+${JSON.stringify({
+  project: { name: project.name, description: project.description, budget: project.monthlyBudget, targetCpl: project.targetCpl, primaryConversion: project.primaryConversion, kpi: [project.kpi1, project.kpi2, project.kpi3].filter(Boolean) },
+  period: { history: { from: dateFrom, to: dateTo }, month: { from: monthFrom, to: dateTo }, week: { from: weekFrom, to: dateTo } },
+  totals: { history, month, week },
+  directions,
+  campaigns: campaignMetrics,
+  calculatedCandidates: { conclusions, tasks },
+})}`,
+      { cacheKey: `analysis:${id}:${dateTo}`, reasoning: "medium", verbosity: "high", maxOutputTokens: 7000 },
+    );
+
     return NextResponse.json({
       period: { history: `с ${dateFrom}`, month: `с ${monthFrom}`, week: `с ${weekFrom}` },
       metrics: { history, month, week },
-      conclusions,
-      tasks,
+      conclusions: Array.isArray(ai.conclusions) && ai.conclusions.length ? ai.conclusions : conclusions,
+      tasks: Array.isArray(ai.tasks) && ai.tasks.length ? ai.tasks : tasks,
+      aiPowered: true,
+      model: process.env.OPENAI_MODEL || "gpt-5.6-terra",
       readOnly: true,
     });
   } catch (error) {
