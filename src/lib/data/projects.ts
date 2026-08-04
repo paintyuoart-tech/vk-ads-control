@@ -8,6 +8,15 @@ import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/types";
 
 type Goal = { results: number; spend: number };
+const CURRENT_PROJECTS_CACHE_MS = 60_000;
+
+type CurrentProjectsCacheEntry = {
+  expiresAt: number;
+  value?: Project[];
+  pending?: Promise<Project[]>;
+};
+
+const currentProjectsCache = new Map<string, CurrentProjectsCacheEntry>();
 
 function projectCacheFile(id: string) {
   return resolve(process.cwd(), ".runtime-cache", `project-${id}.json`);
@@ -118,13 +127,14 @@ async function getLiveFallbackProjects(): Promise<Project[]> {
   }));
 }
 
-export async function getCurrentProjects(): Promise<Project[]> {
-  const client = await createClient();
-  if (!client) return getLiveFallbackProjects();
+export function invalidateCurrentProjectsCache() {
+  currentProjectsCache.clear();
+}
 
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) return getLiveFallbackProjects();
-
+async function loadSupabaseCurrentProjects(
+  client: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  ownerId: string,
+): Promise<Project[]> {
   const { data, error } = await client.from("projects").select("*").order("created_at");
   if (error || !data?.length) return getLiveFallbackProjects();
 
@@ -133,7 +143,7 @@ export async function getCurrentProjects(): Promise<Project[]> {
   const { data: summaries, error: summaryError } = await client.rpc("get_dashboard_project_totals", {
     month_start: now.toISOString().slice(0, 8) + "01",
     week_start: weekStart,
-    owner_id: user.id,
+    owner_id: ownerId,
   });
   const summaryBySlug = new Map(
     (summaryError ? [] : summaries || []).map((row: Record<string, unknown>) => [String(row.slug), row]),
@@ -141,7 +151,7 @@ export async function getCurrentProjects(): Promise<Project[]> {
   const { data: goalRows } = await client.rpc("get_dashboard_goal_totals", {
     month_start: now.toISOString().slice(0, 8) + "01",
     week_start: weekStart,
-    owner_id: user.id,
+    owner_id: ownerId,
   });
   const goalsBySlug = new Map<string, Record<string, Goal>>();
   const weeklyGoalsBySlug = new Map<string, Record<string, Goal>>();
@@ -162,7 +172,7 @@ export async function getCurrentProjects(): Promise<Project[]> {
   const { data: locationRows } = await client.rpc("get_dashboard_location_totals", {
     month_start: now.toISOString().slice(0, 8) + "01",
     week_start: weekStart,
-    owner_id: user.id,
+    owner_id: ownerId,
   });
   const locations: Record<string, { spend: number; goals: Record<string, Goal> }> = {};
   const weeklyLocations: Record<string, { spend: number; goals: Record<string, Goal> }> = {};
@@ -222,4 +232,36 @@ export async function getCurrentProjects(): Promise<Project[]> {
       } : undefined,
     } satisfies Project;
   });
+}
+
+async function getCachedCurrentProjects(cacheKey: string, loader: () => Promise<Project[]>): Promise<Project[]> {
+  const now = Date.now();
+  const cached = currentProjectsCache.get(cacheKey);
+  if (cached?.value && cached.expiresAt > now) {
+    return cached.value;
+  }
+  if (cached?.pending) return cached.pending;
+
+  const pending = loader()
+    .then((value) => {
+      currentProjectsCache.set(cacheKey, { value, expiresAt: Date.now() + CURRENT_PROJECTS_CACHE_MS });
+      return value;
+    })
+    .catch((error) => {
+      currentProjectsCache.delete(cacheKey);
+      throw error;
+    });
+
+  currentProjectsCache.set(cacheKey, { pending, expiresAt: now + CURRENT_PROJECTS_CACHE_MS });
+  return pending;
+}
+
+export async function getCurrentProjects(): Promise<Project[]> {
+  const client = await createClient();
+  if (!client) return getCachedCurrentProjects("fallback", getLiveFallbackProjects);
+
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return getCachedCurrentProjects("fallback", getLiveFallbackProjects);
+
+  return getCachedCurrentProjects(`user:${user.id}`, () => loadSupabaseCurrentProjects(client, user.id));
 }

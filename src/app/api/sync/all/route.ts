@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { projects } from "@/config/seed";
+import { invalidateCurrentProjectsCache } from "@/lib/data/projects";
 import { syncProject } from "@/lib/sync/project";
 
 export async function POST() {
@@ -15,6 +16,7 @@ export async function POST() {
       };
     }
   }));
+  invalidateCurrentProjectsCache();
 
   return NextResponse.json(
     { ok: results.every((item) => item.ok), results },
