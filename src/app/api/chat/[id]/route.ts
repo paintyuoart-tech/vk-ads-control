@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { projects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
 import { openAiText, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
+import { ensureChatSchema, getDb } from "../../../../../db";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+type StoredMessage = ChatMessage & { id: number; created_at: string };
 type Total = { spend: number; results: number; impressions: number; clicks: number };
+
+function userKey(request: Request) {
+  return request.headers.get("oai-authenticated-user-email")?.trim().toLocaleLowerCase("en-US") || "dashboard-owner";
+}
 
 function emptyTotal(): Total {
   return { spend: 0, results: 0, impressions: 0, clicks: 0 };
@@ -25,20 +31,52 @@ function present(total: Total) {
   };
 }
 
+async function history(request: Request, projectId: string) {
+  await ensureChatSchema();
+  const result = await getDb().prepare(`
+    SELECT id, role, content, created_at
+    FROM chat_messages
+    WHERE user_key = ? AND project_id = ?
+    ORDER BY id DESC
+    LIMIT 40
+  `).bind(userKey(request), projectId).all<StoredMessage>();
+  return (result.results || []).reverse();
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!projects.some((item) => item.id === id)) return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
+  try {
+    return NextResponse.json({ messages: await history(request, id) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить историю" }, { status: 502 });
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    await ensureChatSchema();
+    await getDb().prepare("DELETE FROM chat_messages WHERE user_key = ? AND project_id = ?")
+      .bind(userKey(request), id).run();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось очистить историю" }, { status: 502 });
+  }
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const project = projects.find((item) => item.id === id);
   if (!project) return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "Ключ OpenAI API не настроен" }, { status: 503 });
-  }
+  if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "Ключ OpenAI API не настроен" }, { status: 503 });
 
   try {
     const body = await request.json() as { messages?: ChatMessage[] };
     const messages = (body.messages || [])
       .filter((item) => (item.role === "user" || item.role === "assistant") && typeof item.content === "string")
       .slice(-10)
-      .map((item) => ({ ...item, content: item.content.slice(0, 4000) }));
+      .map((item) => ({ ...item, content: item.content.slice(0, 3000) }));
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return NextResponse.json({ error: "Нужен вопрос пользователя" }, { status: 400 });
     }
@@ -50,47 +88,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const dateFrom = new Date(now.getTime() - 399 * 86400000).toISOString().slice(0, 10);
     const monthFrom = now.toISOString().slice(0, 8) + "01";
     const weekFrom = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
-    const statistics = await provider.getStatistics({
-      dateFrom,
-      dateTo,
-      campaignIds: campaigns.map((item) => item.id),
-    });
+    const statistics = await provider.getStatistics({ dateFrom, dateTo, campaignIds: campaigns.map((item) => item.id) });
     const periods = { history: emptyTotal(), month: emptyTotal(), week: emptyTotal() };
     const campaignTotals = new Map<string, { history: Total; month: Total; week: Total }>();
 
     for (const row of statistics.rows) {
       if (!row.campaignId) continue;
-      const totals = campaignTotals.get(row.campaignId) || {
-        history: emptyTotal(), month: emptyTotal(), week: emptyTotal(),
-      };
+      const totals = campaignTotals.get(row.campaignId) || { history: emptyTotal(), month: emptyTotal(), week: emptyTotal() };
       add(periods.history, row); add(totals.history, row);
       if (row.date >= monthFrom) { add(periods.month, row); add(totals.month, row); }
       if (row.date >= weekFrom) { add(periods.week, row); add(totals.week, row); }
       campaignTotals.set(row.campaignId, totals);
     }
 
-    const campaignContext = campaigns.map((campaign) => {
-      const totals = campaignTotals.get(campaign.id) || {
-        history: emptyTotal(), month: emptyTotal(), week: emptyTotal(),
-      };
-      return {
-        id: campaign.id,
-        name: campaign.name,
-        status: campaign.status,
-        resultType: campaign.resultType,
-        location: campaign.location,
-        history: present(totals.history),
-        month: present(totals.month),
-        week: present(totals.week),
-      };
-    }).sort((a, b) => b.month.spend - a.month.spend);
     const context = {
       project: {
-        name: project.name,
-        description: project.description,
-        primaryConversion: project.primaryConversion,
-        monthlyBudget: project.monthlyBudget,
-        targetCpl: project.targetCpl,
+        name: project.name, description: project.description, primaryConversion: project.primaryConversion,
+        monthlyBudget: project.monthlyBudget, targetCpl: project.targetCpl,
         kpi: [project.kpi1, project.kpi2, project.kpi3].filter(Boolean),
       },
       periods: {
@@ -98,17 +112,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         currentMonth: { from: monthFrom, to: dateTo, ...present(periods.month) },
         last7Days: { from: weekFrom, to: dateTo, ...present(periods.week) },
       },
-      campaigns: campaignContext,
+      campaigns: campaigns.map((campaign) => {
+        const totals = campaignTotals.get(campaign.id) || { history: emptyTotal(), month: emptyTotal(), week: emptyTotal() };
+        return {
+          id: campaign.id, name: campaign.name, status: campaign.status,
+          resultType: campaign.resultType, location: campaign.location,
+          history: present(totals.history), month: present(totals.month), week: present(totals.week),
+        };
+      }).sort((a, b) => b.month.spend - a.month.spend),
     };
-    const transcript = messages.map((item) =>
-      `${item.role === "user" ? "Пользователь" : "ИИ"}: ${item.content}`
-    ).join("\n\n");
+    const transcript = messages.map((item) => `${item.role === "user" ? "Пользователь" : "ИИ"}: ${item.content}`).join("\n\n");
     const answer = await openAiText(
-      `${PROJECT_ANALYST_RULES}\nВ диалоге отвечай на текущий вопрос пользователя. Начни с прямого вывода, затем приведи доказательства и конкретные следующие действия. Если вопрос широкий, всё равно проверь все цели и города из контекста.`,
+      `${PROJECT_ANALYST_RULES}\nОтвечай предельно кратко и простым русским языком. Сначала прямой ответ. Затем максимум 5 коротких пунктов: факт → действие. Не пиши таблицы, длинные вступления, повторения и очевидные советы. Если просят идеи, предложи 3 разные конкретные подачи/аудитории/механики и укажи, на какой кампании или направлении их проверить. Весь ответ — не более 1 200 знаков.`,
       `КОНТЕКСТ ПРОЕКТА:\n${JSON.stringify(context)}\n\nДИАЛОГ:\n${transcript}`,
-      { reasoning: "medium", verbosity: "high", maxOutputTokens: 6000 },
+      { reasoning: "medium", verbosity: "low", maxOutputTokens: 1200 },
     );
-    return NextResponse.json({ answer, model: process.env.OPENAI_MODEL || "gpt-5.6-terra", aiPowered: true, readOnly: true });
+
+    await ensureChatSchema();
+    const key = userKey(request);
+    const question = messages[messages.length - 1].content;
+    await getDb().batch([
+      getDb().prepare("INSERT INTO chat_messages (user_key, project_id, role, content) VALUES (?, ?, 'user', ?)").bind(key, id, question),
+      getDb().prepare("INSERT INTO chat_messages (user_key, project_id, role, content) VALUES (?, ?, 'assistant', ?)").bind(key, id, answer),
+    ]);
+    return NextResponse.json({ answer, model: process.env.OPENAI_MODEL || "gpt-5.6-terra", aiPowered: true, saved: true, readOnly: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось получить ответ ИИ";
     return NextResponse.json({ error: message }, { status: 502 });

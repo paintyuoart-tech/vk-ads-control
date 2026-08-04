@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { projects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
-import { openAiJson, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
+import { COMPACT_AI_RULES, openAiJson, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
 
 type Totals = { spend: number; results: number; impressions: number; clicks: number };
 
@@ -214,7 +214,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       conclusions: Array<{ status: "good" | "warning" | "critical"; title: string; detail: string }>;
       tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }>;
     }>(
-      PROJECT_ANALYST_RULES,
+      `${PROJECT_ANALYST_RULES}\n${COMPACT_AI_RULES}\nЗдесь только диагностика: 3–5 причин результата и 2–4 ближайших действия. Каждый вывод и каждое действие — одно короткое предложение. Не придумывай рекламные идеи в этом режиме.`,
       `Задача: объясни, почему получены именно такие результаты, а затем дай конкретный план действий.
 Верни JSON вида {"conclusions":[{"status":"good|warning|critical","title":"...","detail":"факт, сравнение и объяснение"}],"tasks":[{"title":"...","description":"действие, доказательство, срок и критерий успеха","priority":"high|medium|low"}]}.
 В conclusions должно быть 5–10 выводов: история против месяца, месяц против недели, каждое направление результата, каждый город, лидеры, просадки и ограничения данных. В tasks — 4–8 неповторяющихся действий.
@@ -228,14 +228,22 @@ ${JSON.stringify({
   campaigns: campaignMetrics,
   calculatedCandidates: { conclusions, tasks },
 })}`,
-      { cacheKey: `analysis:${id}:${dateTo}`, reasoning: "medium", verbosity: "high", maxOutputTokens: 7000 },
+      { cacheKey: `analysis:v2:${id}:${dateTo}`, reasoning: "medium", verbosity: "low", maxOutputTokens: 1800 },
     );
 
     return NextResponse.json({
       period: { history: `с ${dateFrom}`, month: `с ${monthFrom}`, week: `с ${weekFrom}` },
       metrics: { history, month, week },
-      conclusions: Array.isArray(ai.conclusions) && ai.conclusions.length ? ai.conclusions : conclusions,
-      tasks: Array.isArray(ai.tasks) && ai.tasks.length ? ai.tasks : tasks,
+      conclusions: (Array.isArray(ai.conclusions) && ai.conclusions.length ? ai.conclusions : conclusions).slice(0, 5).map((item) => ({
+        ...item,
+        title: item.title.slice(0, 90),
+        detail: item.detail.slice(0, 220),
+      })),
+      tasks: (Array.isArray(ai.tasks) && ai.tasks.length ? ai.tasks : tasks).slice(0, 4).map((task) => ({
+        ...task,
+        title: task.title.slice(0, 90),
+        description: task.description.slice(0, 240),
+      })),
       aiPowered: true,
       model: process.env.OPENAI_MODEL || "gpt-5.6-terra",
       readOnly: true,

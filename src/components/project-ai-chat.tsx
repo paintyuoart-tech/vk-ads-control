@@ -15,19 +15,23 @@ export function ProjectAiChat({ projectId, projectName, compact = false }: {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState("");
-  const storageKey = `project-ai-chat:${projectId}`;
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) setMessages(JSON.parse(saved));
-    } catch { /* Ignore damaged local chat history. */ }
-  }, [storageKey]);
+    setHistoryLoading(true);
+    fetch(`/api/chat/${encodeURIComponent(projectId)}`)
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Не удалось загрузить историю");
+        setMessages(Array.isArray(payload.messages) ? payload.messages : []);
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Не удалось загрузить историю"))
+      .finally(() => setHistoryLoading(false));
+  }, [projectId]);
 
   function save(next: Message[]) {
     setMessages(next);
-    window.localStorage.setItem(storageKey, JSON.stringify(next.slice(-20)));
   }
 
   async function submit(event?: FormEvent, suggested?: string) {
@@ -55,9 +59,17 @@ export function ProjectAiChat({ projectId, projectName, compact = false }: {
     }
   }
 
-  function clearChat() {
-    save([]);
+  async function clearChat() {
+    if (loading) return;
     setError("");
+    try {
+      const response = await fetch(`/api/chat/${encodeURIComponent(projectId)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось очистить историю");
+      save([]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Не удалось очистить историю");
+    }
   }
 
   return <>
@@ -74,7 +86,8 @@ export function ProjectAiChat({ projectId, projectName, compact = false }: {
           </div>
         </div>
         <div className="ai-chat-messages">
-          {!messages.length && <div className="ai-chat-welcome">
+          {historyLoading && <div className="ai-message assistant loading"><span>ИИ</span><div>Загружаю историю диалога…</div></div>}
+          {!historyLoading && !messages.length && <div className="ai-chat-welcome">
             <Bot size={30}/><strong>Что хотите узнать о показателях?</strong>
             <span className="small muted">ИИ видит KPI, кампании и статистику этого проекта.</span>
             <div className="ai-chat-suggestions">

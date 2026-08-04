@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { projects } from "@/config/seed";
 import { getAdsProvider } from "@/integrations/vk-ads";
-import { openAiJson, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
+import { COMPACT_AI_RULES, openAiJson, PROJECT_ANALYST_RULES } from "@/lib/ai/openai";
 
 type CampaignTotal = {
   id: string;
@@ -152,7 +152,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       summary: string;
       tasks: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }>;
     }>(
-      PROJECT_ANALYST_RULES,
+      `${PROJECT_ANALYST_RULES}\n${COMPACT_AI_RULES}\nДай 3–5 разных идей. Заголовок — до 7 слов. Описание — одно короткое предложение: что сделать, где проверить и какой результат считать успехом.`,
       `Задача: сформируй наиболее сильный и конкретный план улучшения результатов проекта.
 Верни JSON вида {"summary":"краткий главный вывод","tasks":[{"title":"...","description":"действие, доказательство, срок и критерий успеха","priority":"high|medium|low"}]}.
 Дай 5–8 задач. Обязательно покрой каждое направление результата и каждый город, присутствующие в данных. Не повторяй одну задачу разными словами.
@@ -166,7 +166,7 @@ ${JSON.stringify({
   directions,
   calculatedCandidates: tasks,
 })}`,
-      { cacheKey: `recommendations:v2:${id}:${dateTo}`, reasoning: "medium", verbosity: "high", maxOutputTokens: 6000 },
+      { cacheKey: `recommendations:v3:${id}:${dateTo}`, reasoning: "medium", verbosity: "low", maxOutputTokens: 1800 },
     );
     return NextResponse.json({
       project: project.name,
@@ -175,7 +175,11 @@ ${JSON.stringify({
       best,
       directions,
       summary: ai.summary,
-      tasks: Array.isArray(ai.tasks) && ai.tasks.length ? ai.tasks : tasks,
+      tasks: (Array.isArray(ai.tasks) && ai.tasks.length ? ai.tasks : tasks).slice(0, 5).map((task) => ({
+        ...task,
+        title: task.title.slice(0, 90),
+        description: task.description.slice(0, 260),
+      })),
       aiPowered: true,
       model: process.env.OPENAI_MODEL || "gpt-5.6-terra",
       readOnly: true,
