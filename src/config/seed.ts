@@ -225,6 +225,24 @@ export const projects: Project[] = [
     kpi3: "Покупка из Директа до 8 000 ₽",
     lastSyncStatus: "pending",
   },
+  {
+    id: "aerotone-direct",
+    name: "Aerotone — Директ",
+    slug: "aerotone-direct",
+    status: "stale",
+    color: "#38bdf8",
+    description: "Рекламные кампании Aerotone в Яндекс Директе",
+    vkProfile: "e-20274597",
+    connectionType: "yandex",
+    targetCpl: 3000,
+    dailyBudget: 2000,
+    monthlyBudget: 60000,
+    primaryConversion: "Конверсии",
+    kpi1: "60 000 ₽ в месяц",
+    kpi2: "Заявка до 3 000 ₽",
+    kpi3: "Квалифицированная заявка до 9 000 ₽",
+    lastSyncStatus: "pending",
+  },
 ];
 
 export const projectSummaries: Record<string, {
